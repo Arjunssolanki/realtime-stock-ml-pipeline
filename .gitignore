@@ -4,8 +4,7 @@
 .aws/
 
 # Python Virtual Environments
-venv/
-.venv/
+stockenv/
 __pycache__/
 *.pyc
 

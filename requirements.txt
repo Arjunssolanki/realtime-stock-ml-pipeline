@@ -1,0 +1,17 @@
+# Kafka client for Python
+kafka-python
+
+# Yahoo Finance API data downloader
+yfinance
+
+# Pandas (required backend dependency for yfinance history dataframes)
+pandas
+
+# AWS SDK for Python (required for S3 storage interactions)
+boto3
+
+pandas
+numpy
+scikit-learn
+joblib
+python-dotenv
