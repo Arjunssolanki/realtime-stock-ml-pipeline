@@ -3,16 +3,23 @@ import json
 import yfinance as yf
 from kafka import KafkaProducer
 
-# Since this script runs on the actual server, it targets localhost directly
-KAFKA_BROKER = "localhost:9092"
+# --- Configurations ---
+KAFKA_BROKER = "44.211.164.195:9092"
 TOPIC_NAME = "stockmarket"
 TICKERS = ["AAPL", "GOOGL", "AMZN", "MSFT"]
-print(f"[INFO] Initializing Cloud-Native Ingestion Loop via: {KAFKA_BROKER}...")
-producer = KafkaProducer(
-    bootstrap_servers=[KAFKA_BROKER],
-    value_serializer=lambda x: json.dumps(x).encode('utf-8')
-)
-print("[SUCCESS] Pipeline connected! Streaming Yahoo Finance ticks into Kafka...")
+
+print(f"[INFO] Initializing Kafka Producer targeting Broker at {KAFKA_BROKER}...")
+try:
+    producer = KafkaProducer(
+        bootstrap_servers=[KAFKA_BROKER],
+        value_serializer=lambda x: json.dumps(x).encode('utf-8')
+    )
+    print(f"🔌 Successfully linked to Kafka cluster! Monitoring tickers: {', '.join(TICKERS)}...")
+except Exception as e:
+    print(f"❌ Failed to connect to Kafka Broker: {e}")
+    exit(1)
+
+print("🚀 Starting live multi-stock market stream loop...")
 try:
     while True:
         for symbol in TICKERS:
@@ -33,13 +40,14 @@ try:
                 
                 producer.send(TOPIC_NAME, value=payload)
                 producer.flush()
-                print(f"[DATA] Successfully Streamed: {symbol} | Current Price: ${payload['Close']}")
+                print(f"⚡ [PRODUCER] Streamed Tick -> {symbol} | Close: ${payload['Close']} | Vol: {payload['Volume']}")
             else:
                 print(f"[WARN] Data temporarily missing for {symbol}")
                 
-            time.sleep(2)
+        # 2-second delay between ticks
+        time.sleep(2)
             
 except KeyboardInterrupt:
-    print("\n[STOP] Ingestion loop terminated cleanly.")
+    print("\n🛑 Stock market live streaming producer gracefully stopped by user.")
 finally:
     producer.close()

@@ -1,64 +1,51 @@
+﻿import time
 import json
-import time
-from kafka import KafkaProducer
 import yfinance as yf
+from kafka import KafkaProducer
 
-# --- 1. Kafka Infrastructure Configurations ---
-# Pointing directly to your active EC2 Instance running the Kafka Broker
-KAFKA_EC2_PUBLIC_IP = "44.211.164.195"
-KAFKA_PORT = "9092"
-TOPIC_NAME = "stock-ticks"
+KAFKA_BROKER = "44.211.164.195:9092"
+TOPIC_NAME = "stockmarket"
+TICKERS = ["AAPL", "GOOGL", "AMZN", "MSFT"]
 
-# The target stock ticker symbol (e.g., Apple Inc. - AAPL, or Index like ^GSPC)
-STOCK_SYMBOL = "AAPL" 
-
-print(f"[INFO] Initializing Kafka Producer targeting Broker at {KAFKA_EC2_PUBLIC_IP}:{KAFKA_PORT}...")
+print(f"[INFO] Initializing Kafka Producer targeting Broker at {KAFKA_BROKER}...")
 try:
     producer = KafkaProducer(
-        bootstrap_servers=[f"{KAFKA_EC2_PUBLIC_IP}:{KAFKA_PORT}"],
-        value_serializer=lambda x: json.dumps(x).encode('utf-8'),
-        acks='all',  # Strongest delivery guarantee
-        retries=5
+        bootstrap_servers=[KAFKA_BROKER],
+        value_serializer=lambda x: json.dumps(x).encode('utf-8')
     )
-    print(f"📡 Successfully linked to Kafka cluster! Monitoring ticker: {STOCK_SYMBOL}...")
+    print(f"🔌 Successfully linked to Kafka cluster! Monitoring tickers: {', '.join(TICKERS)}...")
 except Exception as e:
-    print(f"❌ Failed to connect to Kafka Broker: {str(e)}")
-    print("💡 Troubleshooting Tip: Ensure Apache Kafka and Zookeeper are actively running on your EC2 instance and port 9092 is open in its security groups.")
+    print(f"❌ Failed to connect to Kafka Broker: {e}")
     exit(1)
 
-# --- 2. Live Ingestion & Streaming Loop ---
+print("🚀 Starting live multi-stock market stream loop...")
 try:
-    print(f"🚀 Starting live market stream loop for {STOCK_SYMBOL}...")
     while True:
-        # Fetch the absolute latest market quote from Yahoo Finance
-        ticker = yf.Ticker(STOCK_SYMBOL)
-        todays_data = ticker.history(period='1d', interval='1m')
-        
-        if not todays_data.empty:
-            # Grab the last complete 1-minute interval record frame
-            latest_tick = todays_data.iloc[-1]
+        for symbol in TICKERS:
+            ticker_obj = yf.Ticker(symbol)
+            historical_df = ticker_obj.history(period="1d", interval="1m")
             
-            # Map the exact schema formatting required by your Athena/ML layout
-            payload = {
-                "Index": STOCK_SYMBOL,
-                "Timestamp": int(time.time()),
-                "Open": float(latest_tick['Open']),
-                "High": float(latest_tick['High']),
-                "Low": float(latest_tick['Low']),
-                "Close": float(latest_tick['Close']),
-                "Volume": int(latest_tick['Volume'])
-            }
+            if not historical_df.empty:
+                latest_row = historical_df.iloc[-1]
+                payload = {
+                    "Index": symbol,
+                    "Timestamp": int(time.time()),
+                    "Open": round(float(latest_row['Open']), 2),
+                    "High": round(float(latest_row['High']), 2),
+                    "Low": round(float(latest_row['Low']), 2),
+                    "Close": round(float(latest_row['Close']), 2),
+                    "Volume": int(latest_row['Volume'])
+                }
+                
+                producer.send(TOPIC_NAME, value=payload)
+                producer.flush()
+                print(f"⚡ [PRODUCER] Streamed Tick -> {symbol} | Close: ${payload['Close']} | Vol: {payload['Volume']}")
+            else:
+                print(f"[WARN] Data temporarily missing for {symbol}")
+                
+        time.sleep(2)
             
-            # Push payload onto the active Kafka topic stream
-            producer.send(TOPIC_NAME, value=payload)
-            producer.flush() # Forces network buffer commit
-            
-            print(f"⚡ [PRODUCER] Streamed Tick -> Close: ${payload['Close']:.2f} | Vol: {payload['Volume']}")
-        else:
-            print("⏳ Awaiting data frames from the financial API market feed...")
-            
-        # Stream once every minute (60 seconds) to match real-time interval targets
-        time.sleep(60)
-
 except KeyboardInterrupt:
     print("\n🛑 Stock market live streaming producer gracefully stopped by user.")
+finally:
+    producer.close()
