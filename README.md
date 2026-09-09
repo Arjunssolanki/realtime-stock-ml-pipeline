@@ -6,7 +6,7 @@ A light, cloud-native data engineering pipeline that ingests live multi-asset st
 ---
 
 ## 🏗️ System Architecture Flow
-
+![Project End-to-End Architecture](architecture.jpg)
 ```
 
 ---
