@@ -1,0 +1,26 @@
+# AWS Credentials and Environment Files
+.env
+*.pem
+.aws/
+
+# Python Virtual Environments
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Local Machine Learning Model weights (Large files)
+models/*.pkl
+*.pkl
+
+# Local temporary data dumps
+*.csv
+*.json
+.ipynb_checkpoints/
+# Microsoft Word documents
+*.docx
+*.doc
+
+# Word temporary owner files (created when a document is open)
+~$*.docx
+~$*.doc
